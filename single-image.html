@@ -1,0 +1,392 @@
+<!-- MIT LICENSE
+
+Copyright (©) 2025 Josh Levin
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the “Software”),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE. -->
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Example Boulder</title> <!--Insert your boulder's name here-->
+<style>
+body { margin: 0; padding: 0; }
+html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+#container { width: 100%; position: relative;}
+#myImage {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+#canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+}
+#infoBox {
+    background-color: rgba(19, 19, 20, 1);
+    color: white;
+    text-align: left;
+    padding: 0.2vw;
+    font-family: Arial, sans-serif;
+}
+#infoText {
+    margin: 5vw;
+    color: white;
+}
+.arrow {
+    position: absolute;
+    top: 50%; /* Vertically center */
+    transform: translateY(-50%); /* Adjust for centering */
+    font-size: 6vw; /* Adjust size as needed */
+    color: rgba(255, 255, 255, 1); /* Semi-transparent white */
+    cursor: pointer;
+    padding-left: 2vw; /* Add some padding around the arrows */
+    padding-right: 2vw;
+    padding-top: 0.25vw;
+    padding-bottom: 0.25vw;
+    user-select: none; /* Prevent text selection */
+    background-color: rgba(19, 19, 20, 1);
+    border-radius: 50%;
+}
+
+</style>
+</head>
+<body>
+
+<div id="container">
+<!--Insert your photo url below-->
+  <img id="myImage" src="https://live.staticflickr.com//65535//54322835908_90b319b662_o.jpg" alt="Your Image">
+  <canvas id="canvas"></canvas>
+  <div id="textContainer"></div>
+</div>
+
+<div id="infoBox">
+    <p id="infoText">
+    </p>
+</div>
+
+<script>
+const image = document.getElementById('myImage');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const lineWidthPercent = 0.015;
+
+const allCurves = [
+
+    /* Insert locations for curve start and endpoints,
+    given by percent of image dimensions from upper left corner
+    (e.g. y2: 0.5 equals halfway down the image's height) */
+
+    [ /* Curve Set 0 */
+        { x1: 0.24, y1: 0.73, x2: 0.42, y2: 0.28, curvature: 0.1, lineWidthPercent },
+        { x1: 0.42, y1: 0.28, x2: 0.51, y2: 0.23, curvature: -0.4, lineWidthPercent },
+        { x1: 0.51, y1: 0.23, x2: 0.62, y2: 0.12, curvature: 0.5, lineWidthPercent }
+    ],
+    [ /* Curve Set 1 */
+        { x1: 0.73, y1: 0.73, x2: 0.62, y2: 0.53, curvature: -0.2, lineWidthPercent },
+        { x1: 0.62, y1: 0.53, x2: 0.42, y2: 0.28, curvature: -0.4, lineWidthPercent },
+        { x1: 0.42, y1: 0.28, x2: 0.51, y2: 0.23, curvature: -0.4, lineWidthPercent },
+        { x1: 0.51, y1: 0.23, x2: 0.62, y2: 0.12, curvature: 0.5, lineWidthPercent }
+    ],
+    [ /* Curve Set 2 */
+        { x1: 0.73, y1: 0.73, x2: 0.62, y2: 0.53, curvature: -0.2, lineWidthPercent },
+        { x1: 0.62, y1: 0.53, x2: 0.67, y2: 0.1, curvature: 0.5, lineWidthPercent }
+    ]
+];
+
+const texts = [
+    { text: 'Grab Shell,<br>Dude! (V8)', x: 0.24, y: 0.79, color: 'rgba(255, 165, 0, 0.6)' },
+    { text: 'Thunder From<br>Down Under (V10)', x: 0.73, y: 0.79, color: 'rgba(255, 0, 0, 0.6)' },
+    { text: 'Vegemite (V5)', x: 0.86, y: 0.37, color: 'rgba(0, 0, 255, 0.6)' },
+    { text: '🥾 20min', x: 0.08, y: 0.04, color: 'rgba(19, 19, 20, 1)' },
+    { text: '🌗', x: 0.24, y: 0.04, color: 'rgba(19, 19, 20, 1)' }
+];
+
+let currentSolidCurve = 0; // Index of the solid curve set
+
+let hovering = false;
+
+function displayNameAndGrade() {
+    const imgWidth = image.offsetWidth;
+    const imgHeight = image.offsetHeight;
+    const textContainer = document.getElementById('textContainer');
+
+    // Clear existing text elements before redrawing
+    textContainer.innerHTML = '';
+
+    texts.forEach((item, index) => {
+        const textElement = document.createElement('div');
+        textElement.innerHTML = item.text;
+        textElement.style.position = 'absolute';
+        textElement.style.left = `${item.x * imgWidth}px`;
+        textElement.style.top = `${item.y * imgHeight}px`;
+        textElement.style.transform = 'translate(-50%, -50%)'; // Center text
+        textElement.style.color = 'white';
+        textElement.style.fontFamily = 'Arial, sans-serif';
+        textElement.style.fontSize = `${imgWidth * 0.035}px`; // Scale with image width
+        textElement.style.fontWeight = currentSolidCurve === index ? 'bold' : 'normal'; // Bold if selected
+        textElement.style.textAlign = 'center'; // Center the text inside the div
+        textElement.style.whiteSpace = 'nowrap'; // Prevents unexpected line breaks
+
+        textElement.style.backgroundColor = currentSolidCurve === index ? item.color.replace(/0\.6\)$/, '1)') : item.color;
+        textElement.style.padding = `${imgWidth * 0.0075}px ${imgWidth * 0.0125}px`; // Padding inside the box
+        textElement.style.borderRadius = `${imgWidth * 0.0125}px`; // Rounded edges
+        textElement.style.cursor = 'pointer'; // Pointer cursor for clickable text
+
+        if (index < allCurves.length) {
+            textElement.onclick = () => {
+                currentSolidCurve = index; // Update selected index
+                redrawCurves(); // Re-render to update bold effect
+            };
+        }
+        
+        textContainer.appendChild(textElement);
+    });
+}
+
+function updateTextSize() {
+    const imgWidth = image.offsetWidth;
+    document.getElementById('infoText').style.fontSize = `${imgWidth * 0.035}px`; // Scale font size
+}
+
+function updateInfoText() {
+    const infoText = document.getElementById('infoText');
+
+    if (currentSolidCurve === 0) {
+        infoText.innerHTML = '<b>Grab Shell, Dude! (V8)</b> Left entrance to Thunder From Down Under. All pedestals on for feet. Extremely height-dependent. Take 7 if you’re tall, 9 if you’re short, 8 otherwise. FA: Josh Levin, December 2024. <a href="https://www.instagram.com/p/DEYs5WmPbSN/" target="_blank" style="color: blue;">Beta Video</a>';
+    } else if (currentSolidCurve === 1) {
+        infoText.innerHTML = '<b>Thunder from Down Under (V10)</b> Start matched on a flat jug shelf behind a pedestal. Move up and left through crimps to a dark shell feature. Top out to the right. FA: Josh Levin, December 2024. <a href="https://www.instagram.com/p/DEWbRHNuE9V/" target="_blank" style="color: blue;">Beta Video</a>';
+    } else if (currentSolidCurve === 2) {
+        infoText.innerHTML = '<b>Vegemite (V5)</b> Start matched on a flat jug shelf behind a pedestal. Move straight up through crimps. Top out. FA: Josh Levin, December 2024. <a href="https://www.instagram.com/p/DEbZ6hgJLD-/" target="_blank" style="color: blue;">Beta Video</a>';
+    }
+}
+
+function drawCurve(x1, y1, x2, y2, curvature, lineWidthPercent, isLastCurve, isDashed) {
+  ctx.beginPath();
+
+  const imgWidth = image.offsetWidth;
+  const imgHeight = image.offsetHeight;
+
+  const startX = x1 * imgWidth;
+  const startY = y1 * imgHeight;
+  const endX = x2 * imgWidth;
+  const endY = y2 * imgHeight;
+
+  const midX = (startX + endX) / 2;
+  const midY = (startY + endY) / 2;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+
+  const perpX = -dy;
+  const perpY = dx;
+
+  const controlX = midX + perpX * curvature;
+  const controlY = midY + perpY * curvature;
+
+  const color = texts[currentSolidCurve].color;
+  const solidColor = color.replace(/rgba?\(([^)]+)\)/, (_, values) => {
+    const rgb = values.split(',').slice(0, 3).join(',');
+    return `rgb(${rgb})`;
+  });
+
+  ctx.moveTo(startX, startY);
+  ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+  ctx.strokeStyle = 'white';
+
+  const lineWidth = lineWidthPercent * imgWidth;
+  ctx.lineWidth = lineWidth;
+  
+  if (isDashed) {
+    const dashSize = imgWidth * 0.05;
+    ctx.setLineDash([dashSize, dashSize * 0.5]);
+  } else {
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = solidColor;
+  }
+
+  ctx.stroke();
+
+  if (!isLastCurve) {
+    ctx.beginPath();
+    ctx.arc(endX, endY, lineWidth / 2, 0, 2 * Math.PI);
+    ctx.fillStyle = isDashed ? 'white' : solidColor;
+    ctx.fill();
+  } else if (isLastCurve) {
+    const angle = Math.atan2(endY - controlY, endX - controlX);
+    const arrowSize = lineWidth * 3;
+    const arrowBaseOffset = lineWidth * 1.5;
+
+    const baseEndX = endX + arrowBaseOffset * Math.cos(angle);
+    const baseEndY = endY + arrowBaseOffset * Math.sin(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(baseEndX, baseEndY);
+    ctx.lineTo(baseEndX - arrowSize * Math.cos(angle - Math.PI / 6), baseEndY - arrowSize * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(baseEndX - arrowSize * Math.cos(angle + Math.PI / 6), baseEndY - arrowSize * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fillStyle = isDashed ? 'white' : solidColor;
+    ctx.fill();
+  }
+}
+
+function resizeCanvas() {
+  canvas.width = image.offsetWidth;
+  canvas.height = image.offsetHeight;
+  redrawCurves();
+}
+
+function redrawCurves() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < allCurves.length; i++) {
+        if (i !== currentSolidCurve) {
+            const curves = allCurves[i];
+            for (let j = 0; j < curves.length; j++) {
+                const isLast = (j === curves.length - 1);
+                drawCurve(curves[j].x1, curves[j].y1, curves[j].x2, curves[j].y2, curves[j].curvature, curves[j].lineWidthPercent, isLast, true);
+            }
+        }
+    }
+
+    const solidCurves = allCurves[currentSolidCurve];
+    for (let j = 0; j < solidCurves.length; j++) {
+        const isLast = (j === solidCurves.length - 1);
+        drawCurve(solidCurves[j].x1, solidCurves[j].y1, solidCurves[j].x2, solidCurves[j].y2, solidCurves[j].curvature, solidCurves[j].lineWidthPercent, isLast, false);
+    }
+
+    displayNameAndGrade();
+    updateInfoText();
+}
+
+function handleResize() {
+    resizeCanvas();  // Resizes the canvas
+    updateTextSize(); // Updates text size
+}
+
+// Ensure both functions run when the image loads
+image.onload = handleResize;
+window.addEventListener('resize', handleResize);
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') {
+        currentSolidCurve = (currentSolidCurve - 1 + allCurves.length) % allCurves.length; // Wrap around
+    } else if (event.key === 'ArrowRight') {
+        currentSolidCurve = (currentSolidCurve + 1) % allCurves.length; // Wrap around
+    }
+    redrawCurves(); // Redraw with the updated solid/dashed state
+});
+
+let touchStartX = null;
+
+document.getElementById('container').addEventListener('touchstart', (event) => {
+    touchStartX = event.touches[0].clientX;
+});
+
+document.getElementById('container').addEventListener('touchend', (event) => {
+    if (touchStartX === null) {
+        return;
+    }
+
+    const touchEndX = event.changedTouches[0].clientX;
+    const deltaX = touchEndX - touchStartX;
+
+    const swipeThreshold = 50; // Adjust this value for sensitivity
+
+    if (Math.abs(deltaX) > swipeThreshold) {
+        if (deltaX < 0) {
+            // Swipe right
+            currentSolidCurve = (currentSolidCurve + 1) % allCurves.length;
+        } else {
+            // Swipe left
+            currentSolidCurve = (currentSolidCurve - 1 + allCurves.length) % allCurves.length;
+        }
+        redrawCurves();
+    }
+
+    touchStartX = null; // Reset for the next swipe
+});
+
+function isPointNearCurve(px, py, curve) {
+    const imgWidth = image.offsetWidth;
+    const imgHeight = image.offsetHeight;
+    const startX = curve.x1 * imgWidth;
+    const startY = curve.y1 * imgHeight;
+    const endX = curve.x2 * imgWidth;
+    const endY = curve.y2 * imgHeight;
+    
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const perpX = -dy;
+    const perpY = dx;
+    const controlX = midX + perpX * curve.curvature;
+    const controlY = midY + perpY * curve.curvature;
+    
+    const tValues = [...Array(11)].map((_, i) => i / 10);
+    for (let t of tValues) {
+        const qx = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * controlX + t * t * endX;
+        const qy = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * controlY + t * t * endY;
+        
+        const distance = Math.hypot(qx - px, qy - py);
+        if (distance < curve.lineWidthPercent * imgWidth * 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
+canvas.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    hovering = false;
+    for (const curves of allCurves) {
+        if (curves.some(curve => isPointNearCurve(x, y, curve))) {
+            hovering = true;
+            break;
+        }
+    }
+    canvas.style.cursor = hovering ? 'pointer' : 'default';
+});
+
+canvas.addEventListener('click', () => {
+    for (let i = 0; i < allCurves.length; i++) {
+        if (allCurves[i].some(curve => isPointNearCurve(event.clientX - canvas.getBoundingClientRect().left, event.clientY - canvas.getBoundingClientRect().top, curve))) {
+            if (currentSolidCurve !== i) {
+                currentSolidCurve = i;
+                redrawCurves();
+            }
+            break;
+        }
+    }
+});
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,462 @@
+<!-- MIT LICENSE
+
+Copyright (©) 2025 Josh Levin
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the “Software”),
+to deal in the Software without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE. -->
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Example Boulder</title> <!--Insert your boulder's name here-->
+<style>
+body { margin: 0; padding: 0; }
+html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+#container { width: 100%; position: relative;}
+#myImage {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+#canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+}
+#infoBox {
+    background-color: rgba(19, 19, 20, 1);
+    color: white;
+    text-align: left;
+    padding: 0.2vw;
+    font-family: Arial, sans-serif;
+}
+#infoText {
+    margin: 5vw;
+    color: white;
+}
+.arrow {
+    position: absolute;
+    top: 50%; /* Vertically center */
+    transform: translateY(-50%); /* Adjust for centering */
+    font-size: 6vw; /* Adjust size as needed */
+    color: rgba(255, 255, 255, 1); /* Semi-transparent white */
+    cursor: pointer;
+    padding-left: 2vw; /* Add some padding around the arrows */
+    padding-right: 2vw;
+    padding-top: 0.25vw;
+    padding-bottom: 0.25vw;
+    user-select: none; /* Prevent text selection */
+    background-color: rgba(19, 19, 20, 1);
+    border-radius: 50%;
+    z-index: 1000;
+}
+
+#left-arrow {
+    left: 0; /* Position on the left */
+}
+
+#right-arrow {
+    right: 0; /* Position on the right */
+}
+</style>
+</head>
+<body>
+
+<div id="container">
+  <span class="arrow" id="left-arrow">&#10094;</span>
+  <!--Insert your *first* photo's url below-->
+  <img id="myImage" src="https://live.staticflickr.com/65535/54335935972_2e78a6b24a_o.jpg" alt="Your Image">
+  <span class="arrow" id="right-arrow">&#10095;</span>
+  <canvas id="canvas"></canvas>
+  <div id="textContainer"></div>
+</div>
+
+<div id="infoBox">
+    <p id="infoText">
+    </p>
+</div>
+
+<script>
+
+const image = document.getElementById('myImage');
+const leftArrow = document.getElementById('left-arrow');
+const rightArrow = document.getElementById('right-arrow');
+
+const imageURLs = [
+    /* Insert your photo url's below, starting with the first photo */
+    "https://live.staticflickr.com/65535/54335935972_2e78a6b24a_o.jpg",
+    "https://live.staticflickr.com/65535/54336840491_458af6fff1_o.jpg"
+];
+
+let currentImageIndex = 0;
+
+leftArrow.addEventListener('click', () => {
+    currentImageIndex = (currentImageIndex - 1 + imageURLs.length) % imageURLs.length;
+    image.src = imageURLs[currentImageIndex];
+    allCurves = allCurvesSets[currentImageIndex];
+    texts = allTextSets[currentImageIndex];
+    infoTexts = allInfoTextSets[currentImageIndex];
+    currentSolidCurve = 0;
+    handleResize();
+    redrawCurves();
+    updateInfoText();
+});
+
+rightArrow.addEventListener('click', () => {
+    currentImageIndex = (currentImageIndex + 1) % imageURLs.length;
+    image.src = imageURLs[currentImageIndex];
+    allCurves = allCurvesSets[currentImageIndex];
+    texts = allTextSets[currentImageIndex];
+    infoTexts = allInfoTextSets[currentImageIndex];
+    currentSolidCurve = 0;
+    handleResize();
+    redrawCurves();
+    updateInfoText();
+});
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const lineWidthPercent = 0.015;
+
+const allCurvesSets = [ // Array to hold different curve sets
+
+    /* Insert locations for curve start and endpoints,
+    given by percent of image dimensions from upper left corner
+    (e.g. y2: 0.5 equals halfway down the image's height) */
+
+    [ // Curve Set for image 0
+    [
+            { x1: 0.41, y1: 0.89, x2: 0.3, y2: 0.14, curvature: -0.6, lineWidthPercent }
+        ],
+        [
+            { x1: 0.69, y1: 0.78, x2: 0.83, y2: 0.65, curvature: 0.1, lineWidthPercent },
+            { x1: 0.83, y1: 0.65, x2: 0.64, y2: 0.15, curvature: -0.4, lineWidthPercent }
+        ]
+    ],
+    [ // Curve Set for image 1
+       [
+            { x1: 0.58, y1: 0.89, x2: 0.43, y2: 0.48, curvature: 0.1, lineWidthPercent },
+            { x1: 0.43, y1: 0.48, x2: 0.2, y2: 0.13, curvature: -0.1, lineWidthPercent }
+        ] 
+    ]
+];
+
+let allCurves = allCurvesSets[currentImageIndex];
+
+const allTextSets = [
+    [ // Text set for image 0
+        { text: 'Ab Sculptor<br>2000 (V2)', x: 0.15, y: 0.86, color: 'rgba(0, 255, 0, 0.6)' },
+        { text: 'TL Gazelle<br>(V2)', x: 0.85, y: 0.86, color: 'rgba(0, 255, 0, 0.6)' },
+        { text: '🥾 50min', x: 0.08, y: 0.04, color: 'rgba(19, 19, 20, 1)' },
+        { text: '🌕', x: 0.24, y: 0.04, color: 'rgba(19, 19, 20, 1)' }
+    ],
+    [ // Text set for image 1
+        { text: 'Sleeping<br>Giant (V7)', x: 0.33, y: 0.61, color: 'rgba(255, 165, 0, 0.6)' },
+        { text: '🥾 50min', x: 0.08, y: 0.04, color: 'rgba(19, 19, 20, 1)' },
+        { text: '🌑', x: 0.24, y: 0.04, color: 'rgba(19, 19, 20, 1)' }
+    ]
+];
+
+let texts = allTextSets[currentImageIndex];
+
+const allInfoTextSets = [
+    [ // Info text set for image 0
+        {
+            0: '<b>Ab Sculptor 2000 (V2)</b> Start body-wedged in the boulder with your hands matched on the far right juggy corner. Move up and right on positive holds to top out. FA: Ryan Lieberman, August 2024.'
+        },
+        {
+            1: '<b>TL Gazelle (V2)</b> Start matched on a small but positive edge. Move up right to a good hold, then traverse right along juggy features. Top out. FA: Josh Levin, January 2025.'
+        }
+    ],
+    [ // Info text set for image 1
+        {
+            0: '<b>Sleeping Giant (V7)</b> Sit start matched in a juggy crack feature. Move up through crimps and pinches. Top out. FA: Josh Levin, January 2025. <a href="https://www.instagram.com/p/DFMRDaxPKFM/" target="_blank" style="color: blue;">Beta Video</a>'
+        }
+    ]
+];
+
+let infoTexts = allInfoTextSets[currentImageIndex];
+
+function updateInfoText() {
+    const infoText = document.getElementById('infoText');
+    infoText.innerHTML = infoTexts[currentSolidCurve][currentSolidCurve];
+}
+
+let currentSolidCurve = 0; // Index of the solid curve set
+
+let hovering = false;
+
+function displayNameAndGrade() {
+    const imgWidth = image.offsetWidth;
+    const imgHeight = image.offsetHeight;
+    const textContainer = document.getElementById('textContainer');
+
+    // Clear existing text elements before redrawing
+    textContainer.innerHTML = '';
+
+    texts.forEach((item, index) => {
+        const textElement = document.createElement('div');
+        textElement.innerHTML = item.text;
+        textElement.style.position = 'absolute';
+        textElement.style.left = `${item.x * imgWidth}px`;
+        textElement.style.top = `${item.y * imgHeight}px`;
+        textElement.style.transform = 'translate(-50%, -50%)'; // Center text
+        textElement.style.color = 'white';
+        textElement.style.fontFamily = 'Arial, sans-serif';
+        textElement.style.fontSize = `${imgWidth * 0.035}px`; // Scale with image width
+        textElement.style.fontWeight = currentSolidCurve === index ? 'bold' : 'normal'; // Bold if selected
+        textElement.style.textAlign = 'center'; // Center the text inside the div
+        textElement.style.whiteSpace = 'nowrap'; // Prevents unexpected line breaks
+
+        textElement.style.backgroundColor = currentSolidCurve === index ? item.color.replace(/0\.6\)$/, '1)') : item.color;
+        textElement.style.padding = `${imgWidth * 0.0075}px ${imgWidth * 0.0125}px`; // Padding inside the box
+        textElement.style.borderRadius = `${imgWidth * 0.0125}px`; // Rounded edges
+        textElement.style.cursor = 'pointer'; // Pointer cursor for clickable text
+
+        if (index < allCurves.length) {
+            textElement.onclick = () => {
+                currentSolidCurve = index; // Update selected index
+                redrawCurves(); // Re-render to update bold effect
+            };
+        }
+        
+        textContainer.appendChild(textElement);
+    });
+}
+
+function updateTextSize() {
+    const imgWidth = image.offsetWidth;
+    document.getElementById('infoText').style.fontSize = `${imgWidth * 0.035}px`; // Scale font size
+}
+
+function drawCurve(x1, y1, x2, y2, curvature, lineWidthPercent, isLastCurve, isDashed) {
+  ctx.beginPath();
+
+  const imgWidth = image.offsetWidth;
+  const imgHeight = image.offsetHeight;
+
+  const startX = x1 * imgWidth;
+  const startY = y1 * imgHeight;
+  const endX = x2 * imgWidth;
+  const endY = y2 * imgHeight;
+
+  const midX = (startX + endX) / 2;
+  const midY = (startY + endY) / 2;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+
+  const perpX = -dy;
+  const perpY = dx;
+
+  const controlX = midX + perpX * curvature;
+  const controlY = midY + perpY * curvature;
+
+  const color = texts[currentSolidCurve].color;
+  const solidColor = color.replace(/rgba?\(([^)]+)\)/, (_, values) => {
+    const rgb = values.split(',').slice(0, 3).join(',');
+    return `rgb(${rgb})`;
+  });
+
+  ctx.moveTo(startX, startY);
+  ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+  ctx.strokeStyle = 'white';
+
+  const lineWidth = lineWidthPercent * imgWidth;
+  ctx.lineWidth = lineWidth;
+  
+  if (isDashed) {
+    const dashSize = imgWidth * 0.05;
+    ctx.setLineDash([dashSize, dashSize * 0.5]);
+  } else {
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = solidColor;
+  }
+
+  ctx.stroke();
+
+  if (!isLastCurve) {
+    ctx.beginPath();
+    ctx.arc(endX, endY, lineWidth / 2, 0, 2 * Math.PI);
+    ctx.fillStyle = isDashed ? 'white' : solidColor;
+    ctx.fill();
+  } else if (isLastCurve) {
+    const angle = Math.atan2(endY - controlY, endX - controlX);
+    const arrowSize = lineWidth * 3;
+    const arrowBaseOffset = lineWidth * 1.5;
+
+    const baseEndX = endX + arrowBaseOffset * Math.cos(angle);
+    const baseEndY = endY + arrowBaseOffset * Math.sin(angle);
+
+    ctx.beginPath();
+    ctx.moveTo(baseEndX, baseEndY);
+    ctx.lineTo(baseEndX - arrowSize * Math.cos(angle - Math.PI / 6), baseEndY - arrowSize * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(baseEndX - arrowSize * Math.cos(angle + Math.PI / 6), baseEndY - arrowSize * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fillStyle = isDashed ? 'white' : solidColor;
+    ctx.fill();
+  }
+}
+
+function resizeCanvas() {
+  canvas.width = image.offsetWidth;
+  canvas.height = image.offsetHeight;
+  redrawCurves();
+}
+
+function redrawCurves() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < allCurves.length; i++) {
+        if (i !== currentSolidCurve) {
+            const curves = allCurves[i];
+            for (let j = 0; j < curves.length; j++) {
+                const isLast = (j === curves.length - 1);
+                drawCurve(curves[j].x1, curves[j].y1, curves[j].x2, curves[j].y2, curves[j].curvature, curves[j].lineWidthPercent, isLast, true);
+            }
+        }
+    }
+
+    const solidCurves = allCurves[currentSolidCurve];
+    for (let j = 0; j < solidCurves.length; j++) {
+        const isLast = (j === solidCurves.length - 1);
+        drawCurve(solidCurves[j].x1, solidCurves[j].y1, solidCurves[j].x2, solidCurves[j].y2, solidCurves[j].curvature, solidCurves[j].lineWidthPercent, isLast, false);
+    }
+
+    displayNameAndGrade();
+    updateInfoText();
+}
+
+function handleResize() {
+    resizeCanvas();  // Resizes the canvas
+    updateTextSize(); // Updates text size
+}
+
+// Ensure both functions run when the image loads
+image.onload = () => {
+    handleResize();
+    redrawCurves();
+};
+window.addEventListener('resize', handleResize);
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') {
+        currentSolidCurve = (currentSolidCurve - 1 + allCurves.length) % allCurves.length; // Wrap around
+    } else if (event.key === 'ArrowRight') {
+        currentSolidCurve = (currentSolidCurve + 1) % allCurves.length; // Wrap around
+    }
+    redrawCurves(); // Redraw with the updated solid/dashed state
+});
+
+let touchStartX = null;
+
+document.getElementById('container').addEventListener('touchstart', (event) => {
+    touchStartX = event.touches[0].clientX;
+});
+
+document.getElementById('container').addEventListener('touchend', (event) => {
+    if (touchStartX === null) {
+        return;
+    }
+
+    const touchEndX = event.changedTouches[0].clientX;
+    const deltaX = touchEndX - touchStartX;
+
+    const swipeThreshold = 50; // Adjust this value for sensitivity
+
+    if (Math.abs(deltaX) > swipeThreshold) {
+        if (deltaX < 0) {
+            // Swipe right
+            currentSolidCurve = (currentSolidCurve + 1) % allCurves.length;
+        } else {
+            // Swipe left
+            currentSolidCurve = (currentSolidCurve - 1 + allCurves.length) % allCurves.length;
+        }
+        redrawCurves();
+    }
+
+    touchStartX = null; // Reset for the next swipe
+});
+
+function isPointNearCurve(px, py, curve) {
+    const imgWidth = image.offsetWidth;
+    const imgHeight = image.offsetHeight;
+    const startX = curve.x1 * imgWidth;
+    const startY = curve.y1 * imgHeight;
+    const endX = curve.x2 * imgWidth;
+    const endY = curve.y2 * imgHeight;
+    
+    const midX = (startX + endX) / 2;
+    const midY = (startY + endY) / 2;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const perpX = -dy;
+    const perpY = dx;
+    const controlX = midX + perpX * curve.curvature;
+    const controlY = midY + perpY * curve.curvature;
+    
+    const tValues = [...Array(11)].map((_, i) => i / 10);
+    for (let t of tValues) {
+        const qx = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * controlX + t * t * endX;
+        const qy = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * controlY + t * t * endY;
+        
+        const distance = Math.hypot(qx - px, qy - py);
+        if (distance < curve.lineWidthPercent * imgWidth * 2) {
+            return true;
+        }
+    }
+    return false;
+}
+
+canvas.addEventListener('mousemove', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    hovering = false;
+    for (const curves of allCurves) {
+        if (curves.some(curve => isPointNearCurve(x, y, curve))) {
+            hovering = true;
+            break;
+        }
+    }
+    canvas.style.cursor = hovering ? 'pointer' : 'default';
+});
+
+canvas.addEventListener('click', () => {
+    for (let i = 0; i < allCurves.length; i++) {
+        if (allCurves[i].some(curve => isPointNearCurve(event.clientX - canvas.getBoundingClientRect().left, event.clientY - canvas.getBoundingClientRect().top, curve))) {
+            if (currentSolidCurve !== i) {
+                currentSolidCurve = i;
+                redrawCurves();
+            }
+            break;
+        }
+    }
+});
+
+</script>
+
+</body>
+</html>
